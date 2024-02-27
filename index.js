@@ -2,12 +2,15 @@ const express = require('express')
 const morgan = require('morgan')
 const app = express()
 const cors = require('cors')
+require('dotenv').config()
+const Person = require('./models/person')
 
 app.use(cors())
 app.use(express.static('dist'))
 app.use(express.json())
 morgan.token('body', function (req, res) { return req.method==="POST" ?  JSON.stringify(req.body) : "" })
 app.use(morgan(":method :url :status :res[content-length] - :response-time ms :body"))
+
 
 let data = [
     { 
@@ -35,19 +38,16 @@ let data = [
 
 app.get('/api/persons/:id', (request, response) => {
 
-    const id = Number(request.params.id)
-    const person = data.find(x => x.id === id)
-    if (person){
-    response.json(person)
-    }
-    else {
-        response.status(404).end()
-    }
+  Person.findById(request.params.id).then(note => {
+    response.json(note)
+  })
   }) 
 
 
   app.get('/api/persons/', (request, response) => {
-    response.json(data)
+    Person.find({}).then(persons => {
+      response.json(persons)
+    } )
   })
 
   app.delete('/api/persons/:id', (request, response) => {
@@ -57,25 +57,31 @@ app.get('/api/persons/:id', (request, response) => {
   })
 
   app.post('/api/persons', (request, response) => {
-  const person = request.body
-  if (!(person.name && person.number)){
-    response.status(422).json({"error":"required field missing"})
+    const body = request.body
+    console.log("POST STARTED")
+
+    if (body.name === undefined) {
+      return response.status(400).json({ error: 'name missing' })
     }
-    else if (data.filter(x => x.name===person.name).length > 0){
-    response.status(400).json({"error":"name already in phonebook"})
-    } 
- else {
-  person.id = Math.floor(Math.random()*10000000)
-  data = data.concat(person)
-  response.json(person)
-  }
+  
+    const person = new Person({
+      name: body.name,
+      number: body.number
+    })
+
+    console.log(person)
+    person.save().then(savedPerson => {
+      console.log(`saving ${JSON.stringify(savedPerson)}`)
+      response.json(savedPerson)
+    }).catch(err => console.log(err.message))
   })
 
   app.get('/info', (request, response) => {
-    console.log(request)
-    const now = new Date()
-    const content = `Phonebook has info for ${data.length} people <br/> ${now.toUTCString()}`
+    Person.find({}).then(persons => {
+      const now = new Date()
+    const content = `Phonebook has info for ${persons.length} people <br/> ${now.toUTCString()}`
     response.send(content)
+    } )
   })
 
 const PORT = process.env.PORT || 3001
